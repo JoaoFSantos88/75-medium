@@ -35,19 +35,19 @@ const REACTIONS = ["🎉", "👏", "🔥", "💪", "🙌", "⭐"];
 
 // Icon paths are drawn on a 24x24 grid with a stroke.
 const TASKS = [
-  { label: "Stick to your diet",
+  { label: "Stick to your diet", about: "Choose a way of eating that works for you and follow it. No cheat meals.",
     icon: "M12 7.5c-1.6-1.4-4.6-1.6-6 .6-1.4 2.2-.6 6.2 1.4 9 1.6 2.3 3.2 2.8 4.6 1.9 1.4.9 3 .4 4.6-1.9 2-2.8 2.8-6.8 1.4-9-1.4-2.2-4.4-2-6-.6zM12 7.5c0-2 .9-3.4 2.8-4" },
-  { label: "Exercise for 45 minutes",
+  { label: "Exercise for 45 minutes", about: "Gym, a run, a long walk, yoga, a match. Any movement counts.",
     icon: "M6.5 7v10M17.5 7v10M3.5 9.5v5M20.5 9.5v5M6.5 12h11" },
-  { label: "Drink water regularly",
+  { label: "Drink water regularly", about: "Keep a bottle close and sip through the day.",
     icon: "M12 3.5s6 6.3 6 10.6a6 6 0 0 1-12 0C6 9.8 12 3.5 12 3.5zM9.5 14.5a2.5 2.5 0 0 0 2.5 2.5" },
-  { label: "No alcohol or weed", note: "Unless it's a social celebration",
+  { label: "No alcohol or weed", about: "A real social celebration is the only exception.", note: "Unless it's a social celebration",
     icon: "M8 3.5h8l-.6 5.5a3.4 3.4 0 0 1-6.8 0zM12 12.5v7M8.5 19.5h7M4 4l16 16" },
-  { label: "Avoid excessive phone time",
+  { label: "Avoid excessive phone time", about: "Less scrolling, more being where you are.",
     icon: "M8.5 3h7A1.5 1.5 0 0 1 17 4.5v15a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 7 19.5v-15A1.5 1.5 0 0 1 8.5 3zM11 18h2" },
-  { label: "Read 6 pages of non-fiction",
+  { label: "Read 6 pages of non-fiction", about: "A small daily dose of learning. It adds up to whole books.",
     icon: "M12 6.5C10 5 7 4.5 4 5v13c3-.5 6 0 8 1.5 2-1.5 5-2 8-1.5V5c-3-.5-6 0-8 1.5zM12 6.5v13" },
-  { label: "Journal your daily progress",
+  { label: "Journal your daily progress", about: "A few honest lines on how the day went.",
     icon: "M4 20h4L19 9l-4-4L4 16zM14 6l4 4" }
 ];
 
@@ -661,6 +661,17 @@ function bump(day) {
   void cell.offsetWidth;
   cell.classList.add("bump");
 }
+
+// ---------- What's 75 Medium? ----------
+
+const about = $("about");
+$("about-tasks").innerHTML = TASKS.map((t) =>
+  `<li><span class="task-icon">${svg("", t.icon)}</span>` +
+  `<span><strong>${t.label}</strong><span class="desc">${t.about}</span></span></li>`
+).join("");
+document.addEventListener("click", (e) => {
+  if (e.target.closest("#about-open, [data-about]")) about.showModal();
+});
 
 // ---------- Toasts ----------
 

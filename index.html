@@ -21,6 +21,11 @@
       <img src="assets/icon.svg" alt="" width="28" height="28">
       <span>75 Medium</span>
     </a>
+    <button type="button" class="about-btn" id="about-open" aria-haspopup="dialog">
+      <span class="q" aria-hidden="true">?</span>
+      <span class="long">What's 75 Medium?</span>
+      <span class="short">About</span>
+    </button>
     <button type="button" class="profile" id="profile" hidden>
       <span class="avatar" id="avatar"></span>
       <span id="profile-name"></span>
@@ -111,6 +116,7 @@
       <div class="setup-mark"><img src="assets/icon.svg" alt="" width="48" height="48"></div>
       <h2 id="who-title">Who's <em>tracking?</em></h2>
       <p class="sheet-lede" id="who-lede">Pick yourself to load your calendar on this device.</p>
+      <button type="button" class="who-about" data-about>New to this? What's 75 Medium?</button>
       <ul class="people pick" id="who-list"></ul>
       <button type="button" class="primary" id="who-new">I'm new here</button>
       <button type="button" class="ghost block" id="who-cancel" hidden>Cancel</button>
@@ -130,6 +136,41 @@
       <button type="submit" class="primary">Let's go</button>
       <button type="button" class="ghost block" id="new-back">Back</button>
     </form>
+  </dialog>
+
+  <!-- What's 75 Medium? -->
+  <dialog class="sheet day-sheet about" id="about" aria-labelledby="about-title">
+    <span class="grabber" aria-hidden="true"></span>
+    <div class="sheet-head">
+      <div class="sheet-titles">
+        <h2 id="about-title" tabindex="-1" autofocus>What's <em>75 Medium?</em></h2>
+      </div>
+      <button type="button" class="close" data-close aria-label="Close">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6 L18 18 M18 6 L6 18"/></svg>
+      </button>
+    </div>
+    <p class="sheet-lede">
+      A 75-day streak of seven simple daily habits. It's built to help anyone feel better,
+      get healthier and get in shape, and, most of all, to practise discipline and consistency.
+      Nothing extreme: just the same small promises to yourself, kept every day for 75 days in a row.
+    </p>
+
+    <p class="about-section">Every day, you</p>
+    <ul class="about-tasks" id="about-tasks"></ul>
+
+    <p class="about-section">How the calendar works</p>
+    <ul class="about-states">
+      <li><span class="mini complete"><svg viewBox="0 0 24 24"><path d="M5 12.5 L10 17 L19 7"/></svg></span>Tick all seven tasks and the day turns green.</li>
+      <li><span class="mini partial"><svg viewBox="0 0 24 24"><path d="M6 6 L18 18 M18 6 L6 18"/></svg></span>Some tasks still open? It stays orange until you finish them.</li>
+      <li><span class="mini missed"><svg viewBox="0 0 24 24"><path d="M6 6 L18 18 M18 6 L6 18"/></svg></span>A day that goes by without being logged turns red.</li>
+      <li><span class="mini cheer">🎉</span>Add friends to follow each other and cheer on every green day.</li>
+    </ul>
+
+    <p class="about-quote">It isn't about being perfect. It's about showing up, seventy-five days in a row.</p>
+    <div class="sheet-foot">
+      <span></span>
+      <button type="button" class="primary" data-close>Got it</button>
+    </div>
   </dialog>
 
   <!-- Edit my details -->
