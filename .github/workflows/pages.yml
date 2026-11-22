@@ -1,0 +1,42 @@
+name: Deploy site
+
+# Publishes the site to GitHub Pages on every push to main. Before
+# publishing, it stamps the commit into the style.css and app.js links,
+# so browsers fetch the new files instead of an old cached copy.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Stamp asset versions
+        run: |
+          mkdir _site
+          cp -r index.html style.css app.js assets _site/
+          sed -i "s/?v=dev/?v=${GITHUB_SHA::7}/g" _site/index.html
+          grep -o '?v=[0-9a-f]*' _site/index.html
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4
