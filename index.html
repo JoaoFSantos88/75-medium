@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>75 Medium</title>
-  <meta name="description" content="Track your 75 Medium streak, one day at a time.">
+  <meta name="description" content="Track your 75 Medium streak with friends, one day at a time.">
   <meta name="theme-color" content="#f6f5f8" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#0b0b0f" media="(prefers-color-scheme: dark)">
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
@@ -13,7 +13,7 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=Instrument+Serif:ital@0;1&display=swap">
   <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body class="loading">
   <div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
 
   <header class="topbar">
@@ -21,7 +21,7 @@
       <img src="assets/icon.svg" alt="" width="28" height="28">
       <span>75 Medium</span>
     </a>
-    <button type="button" class="profile" id="edit-profile" hidden>
+    <button type="button" class="profile" id="profile" hidden>
       <span class="avatar" id="avatar"></span>
       <span id="profile-name"></span>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>
@@ -32,7 +32,7 @@
     <div class="side">
       <section class="panel hero">
         <div class="hero-text">
-          <p class="kicker" id="kicker">Your challenge</p>
+          <p class="kicker" id="kicker">Connecting…</p>
           <h1 id="headline">Seventy-five days. <em>One at a time.</em></h1>
           <p class="subline" id="subline">Seven daily tasks. Seventy-five days. No days off.</p>
         </div>
@@ -66,13 +66,29 @@
         <ol class="pips" id="today-pips" aria-hidden="true"></ol>
         <button type="button" class="primary" id="today-open">Log today's tasks</button>
       </section>
+
+      <section class="panel friends" aria-labelledby="friends-title">
+        <div class="friends-head">
+          <h2 id="friends-title">Friends</h2>
+          <button type="button" class="ghost add" id="add-friend">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+            Add
+          </button>
+        </div>
+        <ul class="people" id="friend-list"></ul>
+        <p class="empty" id="friends-empty">Add a friend to follow their 75 days and cheer them on.</p>
+      </section>
     </div>
 
     <section class="panel calendar" aria-labelledby="cal-title">
+      <div class="viewing" id="viewing" hidden>
+        <span>You're viewing <strong id="viewing-name"></strong>'s calendar</span>
+        <button type="button" class="ghost" id="back-mine">Back to mine</button>
+      </div>
       <div class="cal-head">
         <div>
           <h2 id="cal-title">Your 75 days</h2>
-          <p class="cal-sub">Tap any day to check off its tasks.</p>
+          <p class="cal-sub" id="cal-sub">Tap any day to check off its tasks.</p>
         </div>
         <button type="button" class="ghost" id="reset">Reset</button>
       </div>
@@ -87,25 +103,71 @@
     </section>
   </main>
 
-  <footer class="foot">Your progress is saved in this browser only.</footer>
+  <footer class="foot">Synced across your devices.</footer>
 
-  <dialog class="sheet" id="setup" aria-labelledby="setup-title">
-    <form id="setup-form" method="dialog">
+  <!-- Who's tracking: pick yourself or join -->
+  <dialog class="sheet" id="who" aria-labelledby="who-title">
+    <div id="who-pick">
       <div class="setup-mark"><img src="assets/icon.svg" alt="" width="48" height="48"></div>
-      <h2 id="setup-title">Start your <em>75 Medium</em></h2>
+      <h2 id="who-title">Who's <em>tracking?</em></h2>
+      <p class="sheet-lede" id="who-lede">Pick yourself to load your calendar on this device.</p>
+      <ul class="people pick" id="who-list"></ul>
+      <button type="button" class="primary" id="who-new">I'm new here</button>
+      <button type="button" class="ghost block" id="who-cancel" hidden>Cancel</button>
+    </div>
+    <form id="new-form" method="dialog" hidden>
+      <div class="setup-mark"><img src="assets/icon.svg" alt="" width="48" height="48"></div>
+      <h2>Start your <em>75 Medium</em></h2>
       <p class="sheet-lede">Seven tasks a day for seventy-five days. Tell us who you are and when day one is.</p>
       <label class="field">
         <span>Your name</span>
-        <input type="text" id="name" name="name" required maxlength="40" autocomplete="given-name" placeholder="First name">
+        <input type="text" id="new-name" required maxlength="40" autocomplete="given-name" placeholder="First name">
       </label>
       <label class="field">
         <span>Start date</span>
-        <input type="date" id="start" name="start" required>
+        <input type="date" id="new-start" required>
       </label>
-      <button type="submit" class="primary" id="setup-submit">Let's go</button>
+      <button type="submit" class="primary">Let's go</button>
+      <button type="button" class="ghost block" id="new-back">Back</button>
     </form>
   </dialog>
 
+  <!-- Edit my details -->
+  <dialog class="sheet" id="details" aria-labelledby="details-title">
+    <form id="details-form" method="dialog">
+      <h2 id="details-title">Your <em>details</em></h2>
+      <label class="field">
+        <span>Your name</span>
+        <input type="text" id="det-name" required maxlength="40" autocomplete="given-name">
+      </label>
+      <label class="field">
+        <span>Start date</span>
+        <input type="date" id="det-start" required>
+      </label>
+      <button type="submit" class="primary">Save</button>
+      <button type="button" class="ghost block" id="switch-person">This isn't me: switch person</button>
+    </form>
+  </dialog>
+
+  <!-- Add a friend -->
+  <dialog class="sheet" id="friend-picker" aria-labelledby="fp-title">
+    <div class="sheet-head">
+      <div class="sheet-titles">
+        <h2 id="fp-title">Add a <em>friend</em></h2>
+        <p class="sheet-lede">You'll see each other's calendars.</p>
+      </div>
+      <button type="button" class="close" data-close aria-label="Close">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6 L18 18 M18 6 L6 18"/></svg>
+      </button>
+    </div>
+    <ul class="people pick" id="fp-list"></ul>
+    <div class="empty-box" id="fp-empty" hidden>
+      <p>Nobody else has joined yet. Send them the link:</p>
+      <button type="button" class="primary" id="copy-link">Copy link</button>
+    </div>
+  </dialog>
+
+  <!-- My day: task checklist -->
   <dialog class="sheet day-sheet" id="day-sheet" aria-labelledby="day-title">
     <span class="grabber" aria-hidden="true"></span>
     <div class="sheet-head">
@@ -117,19 +179,41 @@
         <h2 id="day-title" tabindex="-1" autofocus>Day 1</h2>
         <p class="sheet-lede" id="day-date"></p>
       </div>
-      <button type="button" class="close" id="day-close" aria-label="Close">
+      <button type="button" class="close" data-close aria-label="Close">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6 L18 18 M18 6 L6 18"/></svg>
       </button>
     </div>
     <p class="day-status" id="day-status" aria-live="polite"></p>
     <ul class="tasks" id="tasks"></ul>
+    <div class="cheers-got" id="day-cheers" hidden></div>
     <div class="sheet-foot">
       <button type="button" class="ghost" id="day-clear">Unmark day</button>
-      <button type="button" class="primary" id="day-done">Done</button>
+      <button type="button" class="primary" data-close>Done</button>
     </div>
   </dialog>
 
+  <!-- Friend's green day: congratulate -->
+  <dialog class="sheet day-sheet" id="cheer-sheet" aria-labelledby="cheer-title">
+    <span class="grabber" aria-hidden="true"></span>
+    <div class="sheet-head">
+      <div class="badge-check" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M5 12.5 L10 17 L19 7"/></svg>
+      </div>
+      <div class="sheet-titles">
+        <h2 id="cheer-title" tabindex="-1" autofocus>Day 1</h2>
+        <p class="sheet-lede" id="cheer-date"></p>
+      </div>
+      <button type="button" class="close" data-close aria-label="Close">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6 L18 18 M18 6 L6 18"/></svg>
+      </button>
+    </div>
+    <p class="cheer-lede" id="cheer-lede"></p>
+    <div class="reactions" id="reactions"></div>
+    <div class="cheers-got" id="cheer-list" hidden></div>
+  </dialog>
+
+  <div class="toasts" id="toasts" popover="manual" aria-live="polite"></div>
   <canvas class="confetti" id="confetti" popover="manual" aria-hidden="true"></canvas>
-  <script src="app.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>

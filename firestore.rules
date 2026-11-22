@@ -1,0 +1,14 @@
+rules_version = '2';
+
+// A private app for a few friends: no sign-in, anyone with the site can
+// read and write these two collections. Everything else is closed.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+    match /cheers/{cheerId} {
+      allow read, create, delete: if true;
+    }
+  }
+}

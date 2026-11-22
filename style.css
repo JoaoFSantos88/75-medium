@@ -774,3 +774,176 @@ h1, h2 { margin: 0; letter-spacing: -0.03em; }
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ---------- Sync, friends and cheers ---------- */
+
+[hidden] { display: none !important; }
+
+body.loading .grid li { opacity: 0.35; }
+body.loading .day { pointer-events: none; }
+body.loading .today, body.loading .friends, body.loading .stats { visibility: hidden; }
+
+.friends { padding: 20px 14px 14px; }
+.friends-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px 8px;
+}
+.friends h2 { font-size: 18px; font-weight: 600; }
+.ghost.add { display: inline-flex; align-items: center; gap: 4px; color: var(--accent); font-weight: 600; }
+.ghost.add svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; }
+
+.empty { margin: 4px 8px 6px; color: var(--muted); font-size: 14px; text-wrap: pretty; }
+
+.people {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.people.pick { margin-top: 18px; max-height: 340px; overflow-y: auto; }
+
+.person {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid transparent;
+  border-radius: 16px;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, transform 0.25s var(--spring);
+}
+.person:hover { background: var(--line); }
+.person:active { transform: scale(0.98); }
+.person.active { background: color-mix(in oklab, var(--accent) 10%, transparent); border-color: color-mix(in oklab, var(--accent) 35%, transparent); }
+.person .avatar { width: 38px; height: 38px; font-size: 15px; flex: none; }
+.person-text { flex: 1; min-width: 0; }
+.person-name { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.person-meta { display: block; color: var(--muted); font-size: 13px; }
+.person .chev { width: 18px; height: 18px; flex: none; fill: none; stroke: var(--faint); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+.ghost.block { display: block; width: 100%; margin-top: 8px; padding: 12px; }
+
+.empty-box { margin-top: 18px; padding: 18px; border-radius: var(--radius); background: var(--line); }
+.empty-box p { margin: 0; color: var(--muted); font-size: 14px; }
+.empty-box .primary { margin-top: 14px; }
+
+.viewing {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: -10px -10px 20px;
+  padding: 8px 8px 8px 16px;
+  border-radius: 16px;
+  background: color-mix(in oklab, var(--accent) 10%, transparent);
+  color: var(--text);
+  font-size: 14px;
+}
+.viewing .ghost { color: var(--accent); font-weight: 600; white-space: nowrap; }
+
+body.friend-view .day.future,
+body.friend-view .day.today:not(.partial):not(.complete):not(.missed) { cursor: default; }
+
+/* Cheers shown on my green days */
+.day .cheer-count {
+  position: absolute;
+  top: 3px;
+  right: 5px;
+  font-size: 11px;
+  line-height: 1;
+  color: var(--on-color);
+  font-weight: 600;
+}
+.day .cheer-count:empty { display: none; }
+
+/* Congratulate sheet */
+.badge-check {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(150deg, color-mix(in oklab, var(--complete) 78%, #7be3c6), var(--complete));
+  box-shadow: 0 8px 20px -8px var(--complete);
+}
+.badge-check svg { width: 22px; height: 22px; fill: none; stroke: var(--on-color); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+
+.cheer-lede { margin: 18px 0 14px; color: var(--muted); font-size: 15px; }
+
+.reactions {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+}
+.reaction {
+  aspect-ratio: 1;
+  border: 1px solid var(--line-strong);
+  border-radius: 16px;
+  background: var(--panel-solid);
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform 0.3s var(--spring), border-color 0.2s, background 0.2s;
+}
+.reaction:hover { transform: translateY(-3px); border-color: var(--accent); background: color-mix(in oklab, var(--accent) 8%, var(--panel-solid)); }
+.reaction:active { transform: scale(0.9); }
+.reaction.sent { animation: sent 0.6s var(--spring); }
+@keyframes sent {
+  30% { transform: scale(1.3) rotate(-8deg); }
+  60% { transform: scale(0.95) rotate(4deg); }
+}
+
+.cheers-got { margin-top: 18px; }
+.cheers-title { margin: 0 0 8px; color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+.cheers-got ul { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.cheers-got li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px 5px 8px;
+  border-radius: 999px;
+  background: var(--line);
+  font-size: 13px;
+  font-weight: 500;
+}
+.cheer-emoji { font-size: 16px; }
+
+/* Toasts: a popover so they show above open dialogs */
+.toasts {
+  position: fixed;
+  inset: auto 0 max(20px, env(safe-area-inset-bottom)) 0;
+  width: auto;
+  height: auto;
+  margin: 0 auto;
+  padding: 0 16px;
+  border: 0;
+  background: none;
+  overflow: visible;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+.toasts:popover-open { display: flex; }
+.toast {
+  max-width: 420px;
+  padding: 12px 18px;
+  border-radius: 16px;
+  background: light-dark(#18171d, #f3f2f7);
+  color: light-dark(#ffffff, #141318);
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: 0 12px 32px -12px rgb(0 0 0 / 0.4);
+  animation: toast-in 0.4s var(--spring);
+  transition: opacity 0.3s, transform 0.3s;
+}
+.toast.out { opacity: 0; transform: translateY(8px); }
+@keyframes toast-in { from { opacity: 0; transform: translateY(12px) scale(0.96); } }

@@ -1,400 +1,731 @@
-(() => {
-  const TOTAL = 75;
-  const KEY = "75medium:v2";
-  const OLD_KEY = "75medium:days";
-  const DAY_MS = 86400000;
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
+import {
+  initializeFirestore, getFirestore, persistentLocalCache, persistentMultipleTabManager,
+  collection, doc, onSnapshot, addDoc, updateDoc, deleteField, arrayUnion, arrayRemove,
+  serverTimestamp, query, where
+} from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 
-  // Icon paths are drawn on a 24x24 grid with a stroke.
-  const TASKS = [
-    { label: "Stick to your diet",
-      icon: "M12 7.5c-1.6-1.4-4.6-1.6-6 .6-1.4 2.2-.6 6.2 1.4 9 1.6 2.3 3.2 2.8 4.6 1.9 1.4.9 3 .4 4.6-1.9 2-2.8 2.8-6.8 1.4-9-1.4-2.2-4.4-2-6-.6zM12 7.5c0-2 .9-3.4 2.8-4" },
-    { label: "Exercise for 45 minutes",
-      icon: "M6.5 7v10M17.5 7v10M3.5 9.5v5M20.5 9.5v5M6.5 12h11" },
-    { label: "Drink water regularly",
-      icon: "M12 3.5s6 6.3 6 10.6a6 6 0 0 1-12 0C6 9.8 12 3.5 12 3.5zM9.5 14.5a2.5 2.5 0 0 0 2.5 2.5" },
-    { label: "No alcohol or weed", note: "Unless it's a social celebration",
-      icon: "M8 3.5h8l-.6 5.5a3.4 3.4 0 0 1-6.8 0zM12 12.5v7M8.5 19.5h7M4 4l16 16" },
-    { label: "Avoid excessive phone time",
-      icon: "M8.5 3h7A1.5 1.5 0 0 1 17 4.5v15a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 7 19.5v-15A1.5 1.5 0 0 1 8.5 3zM11 18h2" },
-    { label: "Read 6 pages of non-fiction",
-      icon: "M12 6.5C10 5 7 4.5 4 5v13c3-.5 6 0 8 1.5 2-1.5 5-2 8-1.5V5c-3-.5-6 0-8 1.5zM12 6.5v13" },
-    { label: "Journal your daily progress",
-      icon: "M4 20h4L19 9l-4-4L4 16zM14 6l4 4" }
-  ];
+// This key only identifies the Firebase project. It is meant to be public;
+// access is controlled by firestore.rules.
+const firebaseConfig = {
+  apiKey: "AIzaSyAsuPrNLMkrY11mM0ybPAvcCoXi5TC_hVY",
+  authDomain: "medium75-7c39.firebaseapp.com",
+  projectId: "medium75-7c39",
+  storageBucket: "medium75-7c39.firebasestorage.app",
+  messagingSenderId: "901567497921",
+  appId: "1:901567497921:web:db6a4032a4321f1122b640"
+};
 
-  const $ = (id) => document.getElementById(id);
-  const svg = (cls, d, box = "0 0 24 24") =>
-    `<svg class="${cls}" viewBox="${box}" aria-hidden="true"><path d="${d}"/></svg>`;
-
-  // ---------- State ----------
-  // { name, start: "YYYY-MM-DD", days: { "<day>": [bool x 7] } }
-  // A day present in `days` has been marked with an X.
-
-  const emptyTasks = () => TASKS.map(() => false);
-
-  function load() {
-    let s = null;
-    try { s = JSON.parse(localStorage.getItem(KEY)); } catch {}
-    if (!s || typeof s !== "object") s = {};
-    if (!s.days || typeof s.days !== "object") s.days = {};
-    // Days crossed off in the first version had no tasks yet.
-    try {
-      const old = JSON.parse(localStorage.getItem(OLD_KEY));
-      if (Array.isArray(old)) {
-        old.forEach((d) => { if (!s.days[d]) s.days[d] = emptyTasks(); });
-        localStorage.removeItem(OLD_KEY);
-      }
-    } catch {}
-    return s;
-  }
-
-  const state = load();
-  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} };
-
-  const doneCount = (day) => (state.days[day] || []).filter(Boolean).length;
-  const status = (day) =>
-    !state.days[day] ? "none" : doneCount(day) === TASKS.length ? "complete" : "partial";
-
-  // ---------- Dates ----------
-
-  const parseDate = (iso) => { const [y, m, d] = iso.split("-").map(Number); return new Date(y, m - 1, d); };
-  const isoToday = () => {
-    const d = new Date();
-    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-    return d.toISOString().slice(0, 10);
-  };
-  const dateForDay = (day) => {
-    if (!state.start) return null;
-    const d = parseDate(state.start);
-    d.setDate(d.getDate() + day - 1);
-    return d;
-  };
-  const todayDay = () =>
-    state.start ? Math.round((parseDate(isoToday()) - parseDate(state.start)) / DAY_MS) + 1 : 0;
-  const fmt = (d, opts) => d.toLocaleDateString(undefined, opts);
-
-  // ---------- Stats ----------
-
-  function stats() {
-    let complete = 0, best = 0, run = 0;
-    for (let d = 1; d <= TOTAL; d++) {
-      if (status(d) === "complete") { complete++; run++; best = Math.max(best, run); }
-      else run = 0;
-    }
-    // Current streak counts back from today, or from yesterday while today is still open.
-    const t = Math.min(todayDay(), TOTAL);
-    let streak = 0;
-    let d = status(t) === "complete" ? t : t - 1;
-    while (d >= 1 && status(d) === "complete") { streak++; d--; }
-    return { complete, best, streak };
-  }
-
-  // ---------- Calendar ----------
-
-  const grid = $("grid");
-  const cells = [];
-  for (let day = 1; day <= TOTAL; day++) {
-    const li = document.createElement("li");
-    li.style.setProperty("--i", day);
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "day";
-    btn.dataset.day = day;
-    btn.innerHTML =
-      `<span class="num">${day}</span><span class="tag">${day}</span>` +
-      svg("x", "M6 6 L18 18 M18 6 L6 18") +
-      svg("tick", "M5 12.5 L10 17 L19 7");
-    li.append(btn);
-    grid.append(li);
-    cells.push(btn);
-  }
-
-  function renderWeekdays() {
-    const first = state.start ? parseDate(state.start) : new Date(2024, 0, 1); // a Monday
-    const labels = [];
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(first);
-      d.setDate(d.getDate() + i);
-      labels.push(`<li>${fmt(d, { weekday: "short" }).slice(0, 3)}</li>`);
-    }
-    $("weekdays").innerHTML = labels.join("");
-  }
-
-  function renderDay(day) {
-    const btn = cells[day - 1];
-    const s = status(day);
-    const t = todayDay();
-    btn.classList.toggle("complete", s === "complete");
-    btn.classList.toggle("partial", s === "partial");
-    btn.classList.toggle("today", day === t);
-    btn.classList.toggle("future", Boolean(s === "none" && state.start && day > t));
-    btn.classList.toggle("missed", Boolean(s === "none" && state.start && day < t));
-
-    const date = dateForDay(day);
-    let label = `Day ${day}`;
-    if (date) label += `, ${fmt(date, { weekday: "long", month: "long", day: "numeric" })}`;
-    if (s === "complete") label += ", complete";
-    else if (s === "partial") label += `, ${doneCount(day)} of ${TASKS.length} tasks done`;
-    else if (btn.classList.contains("missed")) label += ", missed";
-    btn.setAttribute("aria-label", label);
-  }
-
-  // ---------- Summary panels ----------
-
-  function renderSummary() {
-    const { complete, best, streak } = stats();
-    const pct = Math.round((complete / TOTAL) * 100);
-    $("ring-fill").style.strokeDashoffset = 326.73 * (1 - complete / TOTAL);
-    $("ring-pct").textContent = `${pct}%`;
-    $("ring").setAttribute("aria-label", `${complete} of ${TOTAL} days complete`);
-    $("stat-complete").textContent = complete;
-    $("stat-streak").textContent = streak;
-    $("stat-best").textContent = best;
-    $("stat-left").textContent = TOTAL - complete;
-    $("finish").hidden = complete < TOTAL;
-    renderToday();
-  }
-
-  function renderProfile() {
-    if (!state.name) return;
-    $("edit-profile").hidden = false;
-    $("profile-name").textContent = state.name;
-    $("avatar").textContent = state.name.charAt(0).toUpperCase();
-
-    const t = todayDay();
-    const start = parseDate(state.start);
-    const end = dateForDay(TOTAL);
-    const short = { month: "short", day: "numeric" };
-
-    if (t < 1) {
-      $("kicker").textContent = `Starts in ${1 - t} day${1 - t === 1 ? "" : "s"}`;
-      $("headline").innerHTML = `Get ready, <em></em>`;
-    } else if (t > TOTAL) {
-      $("kicker").textContent = "Challenge finished";
-      $("headline").innerHTML = `Well done, <em></em>`;
-    } else {
-      $("kicker").textContent = `Day ${t} of ${TOTAL}`;
-      $("headline").innerHTML = `Keep going, <em></em>`;
-    }
-    $("headline").querySelector("em").textContent = `${state.name}.`;
-    $("subline").textContent = `${fmt(start, short)} – ${fmt(end, { ...short, year: "numeric" })}`;
-  }
-
-  function renderToday() {
-    const t = todayDay();
-    const open = $("today-open");
-    const count = $("today-count");
-    const pips = $("today-pips");
-    open.classList.remove("is-complete");
-
-    if (!state.start || t < 1 || t > TOTAL) {
-      $("today-kicker").textContent = "Today";
-      $("today-title").textContent = !state.start ? "Not started"
-        : t < 1 ? `Day 1 is ${fmt(parseDate(state.start), { weekday: "long", month: "long", day: "numeric" })}`
-        : "All 75 days are behind you";
-      count.textContent = "";
-      pips.innerHTML = "";
-      open.disabled = true;
-      open.textContent = t > TOTAL ? "Challenge over" : "Not yet";
-      return;
-    }
-
-    const n = doneCount(t);
-    const done = state.days[t] || [];
-    $("today-kicker").textContent = `Today · ${fmt(new Date(), { weekday: "long", month: "short", day: "numeric" })}`;
-    $("today-title").textContent = `Day ${t}`;
-    count.textContent = state.days[t] ? `${n}/${TASKS.length}` : "";
-    count.classList.toggle("all", n === TASKS.length);
-    pips.innerHTML = TASKS.map((_, i) => `<li class="${done[i] ? "on" : ""}"></li>`).join("");
-    open.disabled = false;
-    if (n === TASKS.length) {
-      open.textContent = "Today is complete";
-      open.classList.add("is-complete");
-    } else {
-      open.textContent = n ? "Continue today's tasks" : "Log today's tasks";
-    }
-  }
-
-  function renderAll() {
-    renderWeekdays();
-    for (let d = 1; d <= TOTAL; d++) renderDay(d);
-    renderProfile();
-    renderSummary();
-  }
-
-  // ---------- Day sheet ----------
-
-  const sheet = $("day-sheet");
-  const tasksEl = $("tasks");
-  let openDay = 0;
-
-  tasksEl.innerHTML = TASKS.map((task, i) =>
-    `<li><button type="button" class="task" role="checkbox" aria-checked="false" data-index="${i}">` +
-      `<span class="task-icon">${svg("", task.icon)}</span>` +
-      `<span class="task-text"><span class="task-label">${task.label}</span>` +
-      (task.note ? `<span class="task-note">${task.note}</span>` : "") +
-      `</span><span class="check">${svg("", "M5 12.5 L10 17 L19 7")}</span>` +
-    `</button></li>`
-  ).join("");
-  const taskBtns = [...tasksEl.querySelectorAll(".task")];
-
-  function renderSheet() {
-    const day = openDay;
-    const n = doneCount(day);
-    const all = n === TASKS.length;
-    const date = dateForDay(day);
-    $("day-title").textContent = `Day ${day}`;
-    $("day-date").textContent = date ? fmt(date, { weekday: "long", month: "long", day: "numeric", year: "numeric" }) : "";
-    $("mini-count").textContent = n;
-    $("mini-fill").style.strokeDashoffset = 113.1 * (1 - n / TASKS.length);
-    $("mini-ring").classList.toggle("all", all);
-    const st = $("day-status");
-    st.textContent = all ? "All seven done. This day is complete."
-      : `${TASKS.length - n} task${TASKS.length - n === 1 ? "" : "s"} left to complete this day`;
-    st.classList.toggle("all", all);
-    taskBtns.forEach((b, i) => b.setAttribute("aria-checked", String(!!state.days[day][i])));
-  }
-
-  function openSheet(day) {
-    openDay = day;
-    if (!state.days[day]) {
-      state.days[day] = emptyTasks();
-      save();
-      renderDay(day);
-      renderSummary();
-    }
-    renderSheet();
-    sheet.showModal();
-  }
-
-  grid.addEventListener("click", (e) => {
-    const btn = e.target.closest(".day");
-    if (btn) openSheet(Number(btn.dataset.day));
+const app = initializeApp(firebaseConfig);
+let db;
+try {
+  db = initializeFirestore(app, {
+    localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
   });
+} catch {
+  db = getFirestore(app);
+}
 
-  $("today-open").addEventListener("click", () => openSheet(todayDay()));
+const TOTAL = 75;
+const DAY_MS = 86400000;
+const ME_KEY = "75medium:me";
+const SEEN_KEY = "75medium:seen-cheers";
+const LOCAL_KEY = "75medium:v2"; // progress saved before sync existed
+const REACTIONS = ["🎉", "👏", "🔥", "💪", "🙌", "⭐"];
 
-  tasksEl.addEventListener("click", (e) => {
-    const btn = e.target.closest(".task");
-    if (!btn) return;
-    const i = Number(btn.dataset.index);
-    const before = status(openDay);
-    state.days[openDay][i] = !state.days[openDay][i];
-    save();
-    renderSheet();
-    renderDay(openDay);
-    renderSummary();
-    navigator.vibrate?.(8);
-    if (before !== "complete" && status(openDay) === "complete") {
-      navigator.vibrate?.([12, 40, 12]);
-      confetti();
-    }
-  });
+// Icon paths are drawn on a 24x24 grid with a stroke.
+const TASKS = [
+  { label: "Stick to your diet",
+    icon: "M12 7.5c-1.6-1.4-4.6-1.6-6 .6-1.4 2.2-.6 6.2 1.4 9 1.6 2.3 3.2 2.8 4.6 1.9 1.4.9 3 .4 4.6-1.9 2-2.8 2.8-6.8 1.4-9-1.4-2.2-4.4-2-6-.6zM12 7.5c0-2 .9-3.4 2.8-4" },
+  { label: "Exercise for 45 minutes",
+    icon: "M6.5 7v10M17.5 7v10M3.5 9.5v5M20.5 9.5v5M6.5 12h11" },
+  { label: "Drink water regularly",
+    icon: "M12 3.5s6 6.3 6 10.6a6 6 0 0 1-12 0C6 9.8 12 3.5 12 3.5zM9.5 14.5a2.5 2.5 0 0 0 2.5 2.5" },
+  { label: "No alcohol or weed", note: "Unless it's a social celebration",
+    icon: "M8 3.5h8l-.6 5.5a3.4 3.4 0 0 1-6.8 0zM12 12.5v7M8.5 19.5h7M4 4l16 16" },
+  { label: "Avoid excessive phone time",
+    icon: "M8.5 3h7A1.5 1.5 0 0 1 17 4.5v15a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 7 19.5v-15A1.5 1.5 0 0 1 8.5 3zM11 18h2" },
+  { label: "Read 6 pages of non-fiction",
+    icon: "M12 6.5C10 5 7 4.5 4 5v13c3-.5 6 0 8 1.5 2-1.5 5-2 8-1.5V5c-3-.5-6 0-8 1.5zM12 6.5v13" },
+  { label: "Journal your daily progress",
+    icon: "M4 20h4L19 9l-4-4L4 16zM14 6l4 4" }
+];
 
-  const closeSheet = () => sheet.close();
-  $("day-done").addEventListener("click", closeSheet);
-  $("day-close").addEventListener("click", closeSheet);
-  sheet.addEventListener("click", (e) => { if (e.target === sheet) closeSheet(); });
+const $ = (id) => document.getElementById(id);
+const svg = (cls, d) => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true"><path d="${d}"/></svg>`;
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const storage = {
+  get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+  del(k) { try { localStorage.removeItem(k); } catch {} }
+};
 
-  $("day-clear").addEventListener("click", () => {
-    delete state.days[openDay];
-    save();
-    renderDay(openDay);
-    renderSummary();
-    closeSheet();
-  });
+// ---------- State ----------
+// users/{id}: { name, start: "YYYY-MM-DD", days: { "<day>": [bool x 7] }, friends: [id] }
+// cheers/{id}: { to, from, fromName, day, emoji, at }
 
-  sheet.addEventListener("close", () => {
-    const cell = cells[openDay - 1];
-    if (!cell) return;
-    cell.focus({ preventScroll: true });
-    cell.classList.remove("bump");
-    void cell.offsetWidth;
-    cell.classList.add("bump");
-  });
+let me = storage.get(ME_KEY);
+let viewing = me;
+const users = new Map();
+let cheers = [];
+let unsubCheers = null;
 
-  // ---------- Setup ----------
+const userRef = (id) => doc(db, "users", id);
+const meUser = () => users.get(me);
+const viewed = () => users.get(viewing) || null;
+const isMine = () => viewing === me;
 
-  const setup = $("setup");
+// ---------- Day maths ----------
 
-  function openSetup() {
-    const first = !state.name;
-    $("setup-title").innerHTML = first ? "Start your <em>75 Medium</em>" : "Your <em>details</em>";
-    $("setup-submit").textContent = first ? "Let's go" : "Save";
-    $("name").value = state.name || "";
-    $("start").value = state.start || isoToday();
-    setup.showModal();
+const emptyTasks = () => TASKS.map(() => false);
+const dayTasks = (u, day) => (u?.days || {})[day] || null;
+const doneCount = (u, day) => (dayTasks(u, day) || []).filter(Boolean).length;
+
+const parseDate = (iso) => { const [y, m, d] = iso.split("-").map(Number); return new Date(y, m - 1, d); };
+const isoToday = () => {
+  const d = new Date();
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 10);
+};
+const dateFor = (u, day) => {
+  if (!u?.start) return null;
+  const d = parseDate(u.start);
+  d.setDate(d.getDate() + day - 1);
+  return d;
+};
+const todayFor = (u) =>
+  u?.start ? Math.round((parseDate(isoToday()) - parseDate(u.start)) / DAY_MS) + 1 : 0;
+const fmt = (d, opts) => d.toLocaleDateString(undefined, opts);
+
+// "complete" | "partial" | "missed" | "today" | "future" | "none"
+function status(u, day) {
+  if (dayTasks(u, day)) return doneCount(u, day) === TASKS.length ? "complete" : "partial";
+  if (!u?.start) return "none";
+  const t = todayFor(u);
+  return day < t ? "missed" : day === t ? "today" : "future";
+}
+
+function stats(u) {
+  let complete = 0, best = 0, run = 0;
+  for (let d = 1; d <= TOTAL; d++) {
+    if (status(u, d) === "complete") { complete++; run++; best = Math.max(best, run); }
+    else run = 0;
+  }
+  // The current streak counts back from today, or from yesterday while today is still open.
+  const t = Math.min(todayFor(u), TOTAL);
+  let streak = 0;
+  let d = status(u, t) === "complete" ? t : t - 1;
+  while (d >= 1 && status(u, d) === "complete") { streak++; d--; }
+  return { complete, best, streak };
+}
+
+// ---------- Calendar ----------
+
+const grid = $("grid");
+const cells = [];
+for (let day = 1; day <= TOTAL; day++) {
+  const li = document.createElement("li");
+  li.style.setProperty("--i", day);
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "day";
+  btn.dataset.day = day;
+  btn.innerHTML =
+    `<span class="num">${day}</span><span class="tag">${day}</span><span class="cheer-count"></span>` +
+    svg("x", "M6 6 L18 18 M18 6 L6 18") +
+    svg("tick", "M5 12.5 L10 17 L19 7");
+  li.append(btn);
+  grid.append(li);
+  cells.push(btn);
+}
+
+const cheersForDay = (day) => cheers.filter((c) => c.day === day);
+
+function renderWeekdays(u) {
+  const first = u?.start ? parseDate(u.start) : new Date(2024, 0, 1); // a Monday
+  const labels = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(first);
+    d.setDate(d.getDate() + i);
+    labels.push(`<li>${fmt(d, { weekday: "short" }).slice(0, 3)}</li>`);
+  }
+  $("weekdays").innerHTML = labels.join("");
+}
+
+function renderDay(day) {
+  const u = viewed();
+  const btn = cells[day - 1];
+  const s = status(u, day);
+  for (const c of ["complete", "partial", "missed", "future"]) btn.classList.toggle(c, s === c);
+  btn.classList.toggle("today", day === todayFor(u));
+
+  const got = isMine() && s === "complete" ? cheersForDay(day).length : 0;
+  btn.querySelector(".cheer-count").textContent = got ? `🎉${got > 1 ? got : ""}` : "";
+
+  const date = dateFor(u, day);
+  let label = `Day ${day}`;
+  if (date) label += `, ${fmt(date, { weekday: "long", month: "long", day: "numeric" })}`;
+  if (s === "complete") label += ", complete";
+  else if (s === "partial") label += `, ${doneCount(u, day)} of ${TASKS.length} tasks done`;
+  else if (s === "missed") label += ", missed";
+  if (got) label += `, ${got} cheer${got > 1 ? "s" : ""}`;
+  btn.setAttribute("aria-label", label);
+}
+
+// ---------- Panels ----------
+
+function renderHero() {
+  const u = viewed();
+  const mine = isMine();
+  const { complete, best, streak } = stats(u);
+
+  $("ring-fill").style.strokeDashoffset = 326.73 * (1 - complete / TOTAL);
+  $("ring-pct").textContent = `${Math.round((complete / TOTAL) * 100)}%`;
+  $("ring").setAttribute("aria-label", `${complete} of ${TOTAL} days complete`);
+  $("stat-complete").textContent = complete;
+  $("stat-streak").textContent = streak;
+  $("stat-best").textContent = best;
+  $("stat-left").textContent = TOTAL - complete;
+  $("finish").hidden = complete < TOTAL;
+  $("finish").textContent = mine ? "All 75 days complete. You did it." : `${u?.name} finished all 75 days.`;
+
+  if (!u) return;
+  const t = todayFor(u);
+  const short = { month: "short", day: "numeric" };
+  $("kicker").textContent = t < 1 ? `Starts in ${1 - t} day${1 - t === 1 ? "" : "s"}`
+    : t > TOTAL ? "Challenge finished" : `Day ${t} of ${TOTAL}`;
+  const lead = !mine ? "Cheer on" : t < 1 ? "Get ready," : t > TOTAL ? "Well done," : "Keep going,";
+  $("headline").innerHTML = `${lead} <em></em>`;
+  $("headline").querySelector("em").textContent = `${u.name}.`;
+  $("subline").textContent = `${fmt(parseDate(u.start), short)} – ${fmt(dateFor(u, TOTAL), { ...short, year: "numeric" })}`;
+}
+
+function renderToday() {
+  const card = $("today");
+  card.hidden = !isMine();
+  const u = meUser();
+  if (!u) return;
+  const t = todayFor(u);
+  const open = $("today-open");
+  const count = $("today-count");
+  const pips = $("today-pips");
+  open.classList.remove("is-complete");
+
+  if (t < 1 || t > TOTAL) {
+    $("today-kicker").textContent = "Today";
+    $("today-title").textContent = t < 1
+      ? `Day 1 is ${fmt(parseDate(u.start), { weekday: "long", month: "long", day: "numeric" })}`
+      : "All 75 days are behind you";
+    count.textContent = "";
+    pips.innerHTML = "";
+    open.disabled = true;
+    open.textContent = t > TOTAL ? "Challenge over" : "Not yet";
+    return;
   }
 
-  $("setup-form").addEventListener("submit", () => {
-    state.name = $("name").value.trim();
-    state.start = $("start").value;
-    save();
-    renderAll();
-  });
-
-  // The first-visit setup can't be dismissed until it's filled in.
-  setup.addEventListener("cancel", (e) => { if (!state.name) e.preventDefault(); });
-  setup.addEventListener("click", (e) => { if (e.target === setup && state.name) setup.close(); });
-
-  $("edit-profile").addEventListener("click", openSetup);
-
-  $("reset").addEventListener("click", () => {
-    if (!Object.keys(state.days).length) return;
-    if (!confirm("Clear all 75 days? Your name and start date stay.")) return;
-    state.days = {};
-    save();
-    renderAll();
-  });
-
-  // ---------- Confetti ----------
-
-  const canvas = $("confetti");
-  function confetti() {
-    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const ctx = canvas.getContext("2d");
-    const dpr = window.devicePixelRatio || 1;
-    try { canvas.showPopover(); } catch {}
-    canvas.width = innerWidth * dpr;
-    canvas.height = innerHeight * dpr;
-    ctx.scale(dpr, dpr);
-    const colors = ["#0b8a73", "#1fae8d", "#3b3bff", "#7d7dff", "#f2701c", "#ffd36b"];
-    const parts = Array.from({ length: 140 }, () => ({
-      x: innerWidth / 2 + (Math.random() - 0.5) * 120,
-      y: innerHeight * 0.55,
-      vx: (Math.random() - 0.5) * 16,
-      vy: -Math.random() * 16 - 6,
-      r: Math.random() * Math.PI,
-      vr: (Math.random() - 0.5) * 0.3,
-      w: 6 + Math.random() * 6,
-      h: 4 + Math.random() * 4,
-      c: colors[(Math.random() * colors.length) | 0]
-    }));
-    const startT = performance.now();
-    (function frame(now) {
-      const t = now - startT;
-      ctx.clearRect(0, 0, innerWidth, innerHeight);
-      for (const p of parts) {
-        p.vy += 0.42; p.vx *= 0.99; p.x += p.vx; p.y += p.vy; p.r += p.vr;
-        ctx.save();
-        ctx.globalAlpha = Math.max(0, 1 - t / 2200);
-        ctx.translate(p.x, p.y);
-        ctx.rotate(p.r);
-        ctx.fillStyle = p.c;
-        ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h * Math.abs(Math.cos(p.r * 2)));
-        ctx.restore();
-      }
-      if (t < 2200) requestAnimationFrame(frame);
-      else { ctx.clearRect(0, 0, innerWidth, innerHeight); try { canvas.hidePopover(); } catch {} }
-    })(startT);
+  const n = doneCount(u, t);
+  const done = dayTasks(u, t) || [];
+  $("today-kicker").textContent = `Today · ${fmt(new Date(), { weekday: "long", month: "short", day: "numeric" })}`;
+  $("today-title").textContent = `Day ${t}`;
+  count.textContent = dayTasks(u, t) ? `${n}/${TASKS.length}` : "";
+  count.classList.toggle("all", n === TASKS.length);
+  pips.innerHTML = TASKS.map((_, i) => `<li class="${done[i] ? "on" : ""}"></li>`).join("");
+  open.disabled = false;
+  if (n === TASKS.length) {
+    open.textContent = "Today is complete";
+    open.classList.add("is-complete");
+  } else {
+    open.textContent = n ? "Continue today's tasks" : "Log today's tasks";
   }
+}
 
-  // ---------- Go ----------
+function personRow(id, u, extra = "") {
+  const t = todayFor(u);
+  const { complete } = stats(u);
+  const where = t < 1 ? "Not started yet" : t > TOTAL ? "Finished" : `Day ${t}`;
+  return `<li><button type="button" class="person${extra}" data-id="${esc(id)}">` +
+    `<span class="avatar">${esc((u.name || "?").charAt(0).toUpperCase())}</span>` +
+    `<span class="person-text"><span class="person-name">${esc(u.name)}</span>` +
+    `<span class="person-meta">${where} · ${complete}/${TOTAL} complete</span></span>` +
+    svg("chev", "M9 6l6 6-6 6") + `</button></li>`;
+}
 
+function renderFriends() {
+  const u = meUser();
+  const ids = (u?.friends || []).filter((id) => users.has(id));
+  $("friend-list").innerHTML = ids
+    .map((id) => personRow(id, users.get(id), id === viewing ? " active" : ""))
+    .join("");
+  $("friends-empty").hidden = ids.length > 0;
+}
+
+function renderCalendarHead() {
+  const mine = isMine();
+  const u = viewed();
+  $("viewing").hidden = mine;
+  $("viewing-name").textContent = u?.name || "";
+  $("cal-title").textContent = mine ? "Your 75 days" : `${u?.name}'s 75 days`;
+  $("cal-sub").textContent = mine ? "Tap any day to check off its tasks." : "Tap a green day to congratulate them.";
+  $("reset").hidden = !mine;
+  document.body.classList.toggle("friend-view", !mine);
+}
+
+function renderProfile() {
+  const u = meUser();
+  $("profile").hidden = !u;
+  if (!u) return;
+  $("profile-name").textContent = u.name;
+  $("avatar").textContent = u.name.charAt(0).toUpperCase();
+}
+
+function renderAll() {
+  if (!viewed()) return;
+  document.body.classList.remove("loading");
+  renderWeekdays(viewed());
+  for (let d = 1; d <= TOTAL; d++) renderDay(d);
+  renderHero();
+  renderToday();
+  renderFriends();
+  renderCalendarHead();
+  renderProfile();
+  if ($("day-sheet").open) renderSheet();
+  if ($("cheer-sheet").open) renderCheerSheet();
+}
+
+// ---------- Sync ----------
+
+onSnapshot(collection(db, "users"), (snap) => {
+  users.clear();
+  snap.forEach((d) => users.set(d.id, d.data()));
+
+  if (me && !users.has(me)) { // this device's person was deleted
+    storage.del(ME_KEY);
+    me = viewing = null;
+  }
+  if (viewing && !users.has(viewing)) viewing = me;
+
+  if (!me) {
+    if (!$("who").open) openWho(true);
+    else renderWhoList();
+    return;
+  }
   renderAll();
-  if (!state.name || !state.start) openSetup();
+  if ($("friend-picker").open) renderFriendPicker();
+}, (err) => {
+  console.error(err);
+  $("kicker").textContent = "Can't reach the server";
+  toast("Couldn't load data. Check your connection and refresh.");
+});
 
-  // Roll "today" over at midnight if the page stays open.
-  let lastDay = isoToday();
-  setInterval(() => { if (isoToday() !== lastDay) { lastDay = isoToday(); renderAll(); } }, 60000);
-})();
+function watchCheers() {
+  unsubCheers?.();
+  cheers = [];
+  if (!me) return;
+  let first = true;
+  unsubCheers = onSnapshot(query(collection(db, "cheers"), where("to", "==", me)), (snap) => {
+    cheers = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    announceCheers(first);
+    first = false;
+    if (isMine()) renderAll();
+  });
+}
+
+function announceCheers() {
+  let seen;
+  try { seen = new Set(JSON.parse(storage.get(SEEN_KEY)) || []); } catch { seen = new Set(); }
+  const fresh = cheers.filter((c) => !seen.has(c.id) && c.from !== me);
+  fresh.slice(-3).forEach((c) => toast(`${c.emoji} ${c.fromName} congratulated you on day ${c.day}`));
+  cheers.forEach((c) => seen.add(c.id));
+  storage.set(SEEN_KEY, JSON.stringify([...seen]));
+}
+
+const save = (fields) =>
+  updateDoc(userRef(me), { ...fields, updatedAt: serverTimestamp() })
+    .catch((e) => { console.error(e); toast("Couldn't save. Check your connection."); });
+
+function setMe(id) {
+  me = viewing = id;
+  storage.set(ME_KEY, id);
+  watchCheers();
+  renderAll();
+}
+
+// ---------- Who's tracking ----------
+
+const who = $("who");
+
+function renderWhoList() {
+  const ids = [...users.keys()].sort((a, b) => users.get(a).name.localeCompare(users.get(b).name));
+  $("who-list").innerHTML = ids.map((id) => personRow(id, users.get(id), id === me ? " active" : "")).join("");
+  $("who-lede").textContent = ids.length
+    ? "Pick yourself to load your calendar on this device."
+    : "Nobody's here yet. Be the first.";
+}
+
+function openWho(required) {
+  $("who-pick").hidden = false;
+  $("new-form").hidden = true;
+  $("who-cancel").hidden = required;
+  renderWhoList();
+  if (!who.open) who.showModal();
+}
+
+who.addEventListener("cancel", (e) => { if (!me) e.preventDefault(); });
+$("who-cancel").addEventListener("click", () => who.close());
+
+$("who-list").addEventListener("click", (e) => {
+  const b = e.target.closest(".person");
+  if (!b) return;
+  who.close();
+  setMe(b.dataset.id);
+});
+
+$("who-new").addEventListener("click", () => {
+  let local = {};
+  try { local = JSON.parse(storage.get(LOCAL_KEY)) || {}; } catch {}
+  $("new-name").value = local.name || "";
+  $("new-start").value = local.start || isoToday();
+  $("who-pick").hidden = true;
+  $("new-form").hidden = false;
+  $("new-name").focus();
+});
+
+$("new-back").addEventListener("click", () => openWho(!me));
+
+$("new-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  // Bring along progress this browser saved before sync existed.
+  let local = {};
+  try { local = JSON.parse(storage.get(LOCAL_KEY)) || {}; } catch {}
+  const ref = await addDoc(collection(db, "users"), {
+    name: $("new-name").value.trim(),
+    start: $("new-start").value,
+    days: local.days && typeof local.days === "object" ? local.days : {},
+    friends: [],
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  });
+  storage.del(LOCAL_KEY);
+  who.close();
+  setMe(ref.id);
+});
+
+// ---------- My details ----------
+
+const details = $("details");
+$("profile").addEventListener("click", () => {
+  const u = meUser();
+  $("det-name").value = u.name;
+  $("det-start").value = u.start;
+  details.showModal();
+});
+$("details-form").addEventListener("submit", () => {
+  save({ name: $("det-name").value.trim(), start: $("det-start").value });
+});
+$("switch-person").addEventListener("click", () => {
+  details.close();
+  openWho(false);
+});
+
+// ---------- Friends ----------
+
+const picker = $("friend-picker");
+
+function renderFriendPicker() {
+  const mine = new Set(meUser()?.friends || []);
+  const ids = [...users.keys()].filter((id) => id !== me && !mine.has(id));
+  $("fp-list").innerHTML = ids.map((id) => personRow(id, users.get(id))).join("");
+  $("fp-empty").hidden = ids.length > 0;
+  $("fp-empty").querySelector("p").textContent = users.size > 1
+    ? "Everyone who's joined is already your friend. Invite someone new:"
+    : "Nobody else has joined yet. Send them the link:";
+}
+
+$("add-friend").addEventListener("click", () => { renderFriendPicker(); picker.showModal(); });
+
+$("fp-list").addEventListener("click", async (e) => {
+  const b = e.target.closest(".person");
+  if (!b) return;
+  const id = b.dataset.id;
+  picker.close();
+  await Promise.all([
+    updateDoc(userRef(me), { friends: arrayUnion(id) }),
+    updateDoc(userRef(id), { friends: arrayUnion(me) })
+  ]).catch(() => toast("Couldn't add friend. Try again."));
+  toast(`You and ${users.get(id)?.name} are now friends`);
+});
+
+$("copy-link").addEventListener("click", async () => {
+  const url = location.origin + location.pathname;
+  try {
+    if (navigator.share) await navigator.share({ title: "75 Medium", url });
+    else { await navigator.clipboard.writeText(url); toast("Link copied"); }
+  } catch {}
+});
+
+$("friend-list").addEventListener("click", (e) => {
+  const b = e.target.closest(".person");
+  if (!b) return;
+  viewing = b.dataset.id === viewing ? me : b.dataset.id;
+  renderAll();
+  if (matchMedia("(max-width: 919px)").matches) {
+    document.querySelector(".calendar").scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+});
+
+$("back-mine").addEventListener("click", () => { viewing = me; renderAll(); });
+
+// ---------- My day sheet ----------
+
+const sheet = $("day-sheet");
+const tasksEl = $("tasks");
+let openDay = 0;
+
+tasksEl.innerHTML = TASKS.map((task, i) =>
+  `<li><button type="button" class="task" role="checkbox" aria-checked="false" data-index="${i}">` +
+    `<span class="task-icon">${svg("", task.icon)}</span>` +
+    `<span class="task-text"><span class="task-label">${task.label}</span>` +
+    (task.note ? `<span class="task-note">${task.note}</span>` : "") +
+    `</span><span class="check">${svg("", "M5 12.5 L10 17 L19 7")}</span>` +
+  `</button></li>`
+).join("");
+const taskBtns = [...tasksEl.querySelectorAll(".task")];
+
+function cheersHtml(list) {
+  if (!list.length) return "";
+  return `<p class="cheers-title">Cheers</p><ul>` + list
+    .map((c) => `<li><span class="cheer-emoji">${esc(c.emoji)}</span>${esc(c.fromName)}</li>`)
+    .join("") + `</ul>`;
+}
+
+function renderSheet() {
+  const u = meUser();
+  const day = openDay;
+  const n = doneCount(u, day);
+  const all = n === TASKS.length;
+  const date = dateFor(u, day);
+  $("day-title").textContent = `Day ${day}`;
+  $("day-date").textContent = date ? fmt(date, { weekday: "long", month: "long", day: "numeric", year: "numeric" }) : "";
+  $("mini-count").textContent = n;
+  $("mini-fill").style.strokeDashoffset = 113.1 * (1 - n / TASKS.length);
+  $("mini-ring").classList.toggle("all", all);
+  const st = $("day-status");
+  st.textContent = all ? "All seven done. This day is complete."
+    : `${TASKS.length - n} task${TASKS.length - n === 1 ? "" : "s"} left to complete this day`;
+  st.classList.toggle("all", all);
+  const done = dayTasks(u, day) || emptyTasks();
+  taskBtns.forEach((b, i) => b.setAttribute("aria-checked", String(!!done[i])));
+  const got = cheersForDay(day);
+  $("day-cheers").hidden = !got.length;
+  $("day-cheers").innerHTML = cheersHtml(got);
+}
+
+function openMyDay(day) {
+  openDay = day;
+  const u = meUser();
+  if (!dayTasks(u, day)) {
+    u.days = { ...(u.days || {}), [day]: emptyTasks() }; // show it straight away
+    save({ [`days.${day}`]: emptyTasks() });
+  }
+  renderSheet();
+  sheet.showModal();
+}
+
+tasksEl.addEventListener("click", (e) => {
+  const btn = e.target.closest(".task");
+  if (!btn) return;
+  const u = meUser();
+  const i = Number(btn.dataset.index);
+  const before = status(u, openDay);
+  const next = [...(dayTasks(u, openDay) || emptyTasks())];
+  next[i] = !next[i];
+  u.days = { ...(u.days || {}), [openDay]: next };
+  save({ [`days.${openDay}`]: next });
+  renderAll();
+  navigator.vibrate?.(8);
+  if (before !== "complete" && status(u, openDay) === "complete") {
+    navigator.vibrate?.([12, 40, 12]);
+    confetti();
+  }
+});
+
+$("day-clear").addEventListener("click", () => {
+  const u = meUser();
+  const days = { ...(u.days || {}) };
+  delete days[openDay];
+  u.days = days;
+  save({ [`days.${openDay}`]: deleteField() });
+  sheet.close();
+  renderAll();
+});
+
+$("reset").addEventListener("click", () => {
+  if (!Object.keys(meUser()?.days || {}).length) return;
+  if (!confirm("Clear all 75 days? Your name and start date stay.")) return;
+  meUser().days = {};
+  save({ days: {} });
+  renderAll();
+});
+
+// ---------- Friend's day: congratulate ----------
+
+const cheerSheet = $("cheer-sheet");
+let cheerDay = 0;
+let cheerTo = null;
+let sentCheers = [];
+let unsubSent = null;
+
+$("reactions").innerHTML = REACTIONS
+  .map((r) => `<button type="button" class="reaction" data-emoji="${r}" aria-label="Send ${r}">${r}</button>`)
+  .join("");
+
+function renderCheerSheet() {
+  const u = users.get(cheerTo);
+  if (!u) return;
+  $("cheer-title").textContent = `Day ${cheerDay}`;
+  const date = dateFor(u, cheerDay);
+  $("cheer-date").textContent = date ? fmt(date, { weekday: "long", month: "long", day: "numeric" }) : "";
+  $("cheer-lede").textContent = `${u.name} completed all seven tasks. Send them some love.`;
+  const list = sentCheers.filter((c) => c.day === cheerDay);
+  $("cheer-list").hidden = !list.length;
+  $("cheer-list").innerHTML = cheersHtml(list);
+}
+
+function openCheer(day) {
+  cheerDay = day;
+  if (cheerTo !== viewing) {
+    cheerTo = viewing;
+    sentCheers = [];
+    unsubSent?.();
+    unsubSent = onSnapshot(query(collection(db, "cheers"), where("to", "==", cheerTo)), (snap) => {
+      sentCheers = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      if (cheerSheet.open) renderCheerSheet();
+    });
+  }
+  renderCheerSheet();
+  cheerSheet.showModal();
+}
+
+$("reactions").addEventListener("click", (e) => {
+  const b = e.target.closest(".reaction");
+  if (!b) return;
+  const to = users.get(cheerTo);
+  addDoc(collection(db, "cheers"), {
+    to: cheerTo,
+    from: me,
+    fromName: meUser().name,
+    day: cheerDay,
+    emoji: b.dataset.emoji,
+    at: serverTimestamp()
+  }).catch(() => toast("Couldn't send. Try again."));
+  b.classList.remove("sent");
+  void b.offsetWidth;
+  b.classList.add("sent");
+  navigator.vibrate?.(10);
+  toast(`${b.dataset.emoji} Sent to ${to?.name}`);
+});
+
+// ---------- Calendar clicks ----------
+
+grid.addEventListener("click", (e) => {
+  const btn = e.target.closest(".day");
+  if (!btn || !viewed()) return;
+  const day = Number(btn.dataset.day);
+  if (isMine()) return openMyDay(day);
+
+  const u = viewed();
+  const s = status(u, day);
+  if (s === "complete") openCheer(day);
+  else if (s === "partial") toast(`${u.name} has ${doneCount(u, day)} of ${TASKS.length} tasks done on day ${day}`);
+  else if (s === "missed") toast(`${u.name} missed day ${day}`);
+  else toast(`Day ${day} hasn't been logged yet`);
+});
+
+// ---------- Dialog plumbing ----------
+
+for (const dlg of document.querySelectorAll("dialog")) {
+  dlg.addEventListener("click", (e) => {
+    if (e.target.closest("[data-close]")) dlg.close();
+    else if (e.target === dlg && (dlg !== who || me)) dlg.close(); // backdrop click
+  });
+}
+
+sheet.addEventListener("close", () => bump(openDay));
+cheerSheet.addEventListener("close", () => bump(cheerDay));
+
+function bump(day) {
+  const cell = cells[day - 1];
+  if (!cell) return;
+  cell.focus({ preventScroll: true });
+  cell.classList.remove("bump");
+  void cell.offsetWidth;
+  cell.classList.add("bump");
+}
+
+// ---------- Toasts ----------
+
+const toasts = $("toasts");
+function toast(text) {
+  try { toasts.hidePopover(); toasts.showPopover(); } catch {}
+  const el = document.createElement("div");
+  el.className = "toast";
+  el.textContent = text;
+  toasts.append(el);
+  setTimeout(() => {
+    el.classList.add("out");
+    setTimeout(() => {
+      el.remove();
+      if (!toasts.children.length) { try { toasts.hidePopover(); } catch {} }
+    }, 300);
+  }, 3200);
+}
+
+// ---------- Confetti ----------
+
+const canvas = $("confetti");
+function confetti() {
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const ctx = canvas.getContext("2d");
+  const dpr = window.devicePixelRatio || 1;
+  try { canvas.showPopover(); } catch {}
+  canvas.width = innerWidth * dpr;
+  canvas.height = innerHeight * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const colors = ["#0b8a73", "#1fae8d", "#3b3bff", "#7d7dff", "#f2701c", "#ffd36b"];
+  const parts = Array.from({ length: 140 }, () => ({
+    x: innerWidth / 2 + (Math.random() - 0.5) * 120,
+    y: innerHeight * 0.55,
+    vx: (Math.random() - 0.5) * 16,
+    vy: -Math.random() * 16 - 6,
+    r: Math.random() * Math.PI,
+    vr: (Math.random() - 0.5) * 0.3,
+    w: 6 + Math.random() * 6,
+    h: 4 + Math.random() * 4,
+    c: colors[(Math.random() * colors.length) | 0]
+  }));
+  const startT = performance.now();
+  (function frame(now) {
+    const t = now - startT;
+    ctx.clearRect(0, 0, innerWidth, innerHeight);
+    for (const p of parts) {
+      p.vy += 0.42; p.vx *= 0.99; p.x += p.vx; p.y += p.vy; p.r += p.vr;
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, 1 - t / 2200);
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.r);
+      ctx.fillStyle = p.c;
+      ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h * Math.abs(Math.cos(p.r * 2)));
+      ctx.restore();
+    }
+    if (t < 2200) requestAnimationFrame(frame);
+    else { ctx.clearRect(0, 0, innerWidth, innerHeight); try { canvas.hidePopover(); } catch {} }
+  })(startT);
+}
+
+// ---------- Go ----------
+
+if (me) watchCheers();
+
+// Roll "today" over at midnight if the page stays open.
+let lastDay = isoToday();
+setInterval(() => { if (isoToday() !== lastDay) { lastDay = isoToday(); renderAll(); } }, 60000);
