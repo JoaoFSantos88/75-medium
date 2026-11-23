@@ -34,20 +34,24 @@ const LOCAL_KEY = "75medium:v2"; // progress saved before sync existed
 const REACTIONS = ["🎉", "👏", "🔥", "💪", "🙌", "⭐"];
 
 // Icon paths are drawn on a 24x24 grid with a stroke.
+// "slot" is the task's position in the stored array. New tasks take the next free slot,
+// so days saved earlier keep their meaning. The array order is the display order.
 const TASKS = [
-  { label: "Stick to your diet", about: "Choose a way of eating that works for you and follow it. No cheat meals.",
+  { slot: 7, label: "Get out of bed right away", about: "When you wake up, get up. No snoozing, no scrolling in bed.",
+    icon: "M3 12a9 9 0 0 1 18 0M2 12h20M12 3V1.5M5.6 5.6 4.5 4.5M18.4 5.6l1.1-1.1M8 16l4 4 4-4M12 20v-6" },
+  { slot: 0, label: "Stick to your diet", about: "Choose a way of eating that works for you and follow it. No cheat meals.",
     icon: "M12 7.5c-1.6-1.4-4.6-1.6-6 .6-1.4 2.2-.6 6.2 1.4 9 1.6 2.3 3.2 2.8 4.6 1.9 1.4.9 3 .4 4.6-1.9 2-2.8 2.8-6.8 1.4-9-1.4-2.2-4.4-2-6-.6zM12 7.5c0-2 .9-3.4 2.8-4" },
-  { label: "Exercise for 45 minutes", about: "Gym, a run, a long walk, yoga, a match. Any movement counts.",
+  { slot: 1, label: "Exercise for 45 minutes", about: "Gym, a run, a long walk, yoga, a match. Any movement counts.",
     icon: "M6.5 7v10M17.5 7v10M3.5 9.5v5M20.5 9.5v5M6.5 12h11" },
-  { label: "Drink water regularly", about: "Keep a bottle close and sip through the day.",
+  { slot: 2, label: "Drink water regularly", about: "Keep a bottle close and sip through the day.",
     icon: "M12 3.5s6 6.3 6 10.6a6 6 0 0 1-12 0C6 9.8 12 3.5 12 3.5zM9.5 14.5a2.5 2.5 0 0 0 2.5 2.5" },
-  { label: "No alcohol or weed", about: "A real social celebration is the only exception.", note: "Unless it's a social celebration",
+  { slot: 3, label: "No alcohol or weed", about: "A real social celebration is the only exception.", note: "Unless it's a social celebration",
     icon: "M8 3.5h8l-.6 5.5a3.4 3.4 0 0 1-6.8 0zM12 12.5v7M8.5 19.5h7M4 4l16 16" },
-  { label: "Avoid excessive phone time", about: "Less scrolling, more being where you are.",
+  { slot: 4, label: "Avoid excessive phone time", about: "Less scrolling, more being where you are.",
     icon: "M8.5 3h7A1.5 1.5 0 0 1 17 4.5v15a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 7 19.5v-15A1.5 1.5 0 0 1 8.5 3zM11 18h2" },
-  { label: "Read 6 pages of non-fiction", about: "A small daily dose of learning. It adds up to whole books.",
+  { slot: 5, label: "Read 6 pages of non-fiction", about: "A small daily dose of learning. It adds up to whole books.",
     icon: "M12 6.5C10 5 7 4.5 4 5v13c3-.5 6 0 8 1.5 2-1.5 5-2 8-1.5V5c-3-.5-6 0-8 1.5zM12 6.5v13" },
-  { label: "Journal your daily progress", about: "A few honest lines on how the day went.",
+  { slot: 6, label: "Journal your daily progress", about: "A few honest lines on how the day went.",
     icon: "M4 20h4L19 9l-4-4L4 16zM14 6l4 4" }
 ];
 
@@ -61,7 +65,7 @@ const storage = {
 };
 
 // ---------- State ----------
-// users/{id}: { name, start: "YYYY-MM-DD", days: { "<day>": [bool x 7] }, friends: [id] }
+// users/{id}: { name, start: "YYYY-MM-DD", days: { "<day>": [bool per slot] }, friends: [id] }
 // cheers/{id}: { to, from, fromName, day, emoji, at }
 
 let me = storage.get(ME_KEY);
@@ -77,9 +81,8 @@ const isMine = () => viewing === me;
 
 // ---------- Day maths ----------
 
-const emptyTasks = () => TASKS.map(() => false);
+const emptyTasks = () => Array(TASKS.length).fill(false);
 const dayTasks = (u, day) => (u?.days || {})[day] || null;
-const doneCount = (u, day) => (dayTasks(u, day) || []).filter(Boolean).length;
 
 const parseDate = (iso) => { const [y, m, d] = iso.split("-").map(Number); return new Date(y, m - 1, d); };
 const isoToday = () => {
@@ -95,11 +98,21 @@ const dateFor = (u, day) => {
 };
 const todayFor = (u) =>
   u?.start ? Math.round((parseDate(isoToday()) - parseDate(u.start)) / DAY_MS) + 1 : 0;
+// A past day saved before a task was added is judged on the tasks it had then.
+const tasksOn = (u, day) => {
+  const a = dayTasks(u, day);
+  return a && a.length < TASKS.length && day < todayFor(u) ? TASKS.filter((t) => t.slot < a.length) : TASKS;
+};
+const taskTotal = (u, day) => tasksOn(u, day).length;
+const doneCount = (u, day) => {
+  const a = dayTasks(u, day) || [];
+  return tasksOn(u, day).filter((t) => a[t.slot]).length;
+};
 const fmt = (d, opts) => d.toLocaleDateString(undefined, opts);
 
 // "complete" | "partial" | "missed" | "today" | "future" | "none"
 function status(u, day) {
-  if (dayTasks(u, day)) return doneCount(u, day) === TASKS.length ? "complete" : "partial";
+  if (dayTasks(u, day)) return doneCount(u, day) === taskTotal(u, day) ? "complete" : "partial";
   if (!u?.start) return "none";
   const t = todayFor(u);
   return day < t ? "missed" : day === t ? "today" : "future";
@@ -166,7 +179,7 @@ function renderDay(day) {
   let label = `Day ${day}`;
   if (date) label += `, ${fmt(date, { weekday: "long", month: "long", day: "numeric" })}`;
   if (s === "complete") label += ", complete";
-  else if (s === "partial") label += `, ${doneCount(u, day)} of ${TASKS.length} tasks done`;
+  else if (s === "partial") label += `, ${doneCount(u, day)} of ${taskTotal(u, day)} tasks done`;
   else if (s === "missed") label += ", missed";
   if (got) label += `, ${got} cheer${got > 1 ? "s" : ""}`;
   btn.setAttribute("aria-label", label);
@@ -229,7 +242,7 @@ function renderToday() {
   $("today-title").textContent = `Day ${t}`;
   count.textContent = dayTasks(u, t) ? `${n}/${TASKS.length}` : "";
   count.classList.toggle("all", n === TASKS.length);
-  pips.innerHTML = TASKS.map((_, i) => `<li class="${done[i] ? "on" : ""}"></li>`).join("");
+  pips.innerHTML = TASKS.map((t) => `<li class="${done[t.slot] ? "on" : ""}"></li>`).join("");
   open.disabled = false;
   if (n === TASKS.length) {
     open.textContent = "Today is complete";
@@ -481,8 +494,8 @@ const sheet = $("day-sheet");
 const tasksEl = $("tasks");
 let openDay = 0;
 
-tasksEl.innerHTML = TASKS.map((task, i) =>
-  `<li><button type="button" class="task" role="checkbox" aria-checked="false" data-index="${i}">` +
+tasksEl.innerHTML = TASKS.map((task) =>
+  `<li><button type="button" class="task" role="checkbox" aria-checked="false" data-index="${task.slot}">` +
     `<span class="task-icon">${svg("", task.icon)}</span>` +
     `<span class="task-text"><span class="task-label">${task.label}</span>` +
     (task.note ? `<span class="task-note">${task.note}</span>` : "") +
@@ -502,19 +515,25 @@ function renderSheet() {
   const u = meUser();
   const day = openDay;
   const n = doneCount(u, day);
-  const all = n === TASKS.length;
+  const total = taskTotal(u, day);
+  const all = n === total;
   const date = dateFor(u, day);
   $("day-title").textContent = `Day ${day}`;
   $("day-date").textContent = date ? fmt(date, { weekday: "long", month: "long", day: "numeric", year: "numeric" }) : "";
   $("mini-count").textContent = n;
-  $("mini-fill").style.strokeDashoffset = 113.1 * (1 - n / TASKS.length);
+  $("mini-fill").style.strokeDashoffset = 113.1 * (1 - n / total);
   $("mini-ring").classList.toggle("all", all);
   const st = $("day-status");
-  st.textContent = all ? "All seven done. This day is complete."
-    : `${TASKS.length - n} task${TASKS.length - n === 1 ? "" : "s"} left to complete this day`;
+  st.textContent = all ? "All done. This day is complete."
+    : `${total - n} task${total - n === 1 ? "" : "s"} left to complete this day`;
   st.classList.toggle("all", all);
   const done = dayTasks(u, day) || emptyTasks();
-  taskBtns.forEach((b, i) => b.setAttribute("aria-checked", String(!!done[i])));
+  const shown = new Set(tasksOn(u, day).map((t) => t.slot));
+  taskBtns.forEach((b) => {
+    const slot = Number(b.dataset.index);
+    b.closest("li").hidden = !shown.has(slot);
+    b.setAttribute("aria-checked", String(!!done[slot]));
+  });
   const got = cheersForDay(day);
   $("day-cheers").hidden = !got.length;
   $("day-cheers").innerHTML = cheersHtml(got);
@@ -537,7 +556,9 @@ tasksEl.addEventListener("click", (e) => {
   const u = meUser();
   const i = Number(btn.dataset.index);
   const before = status(u, openDay);
-  const next = [...(dayTasks(u, openDay) || emptyTasks())];
+  const saved = dayTasks(u, openDay) || [];
+  const size = taskTotal(u, openDay) === TASKS.length ? TASKS.length : saved.length;
+  const next = Array.from({ length: Math.max(size, saved.length) }, (_, j) => !!saved[j]);
   next[i] = !next[i];
   u.days = { ...(u.days || {}), [openDay]: next };
   save({ [`days.${openDay}`]: next });
@@ -585,7 +606,7 @@ function renderCheerSheet() {
   $("cheer-title").textContent = `Day ${cheerDay}`;
   const date = dateFor(u, cheerDay);
   $("cheer-date").textContent = date ? fmt(date, { weekday: "long", month: "long", day: "numeric" }) : "";
-  $("cheer-lede").textContent = `${u.name} completed all seven tasks. Send them some love.`;
+  $("cheer-lede").textContent = `${u.name} completed every task. Send them some love.`;
   const list = sentCheers.filter((c) => c.day === cheerDay);
   $("cheer-list").hidden = !list.length;
   $("cheer-list").innerHTML = cheersHtml(list);
@@ -636,7 +657,7 @@ grid.addEventListener("click", (e) => {
   const u = viewed();
   const s = status(u, day);
   if (s === "complete") openCheer(day);
-  else if (s === "partial") toast(`${u.name} has ${doneCount(u, day)} of ${TASKS.length} tasks done on day ${day}`);
+  else if (s === "partial") toast(`${u.name} has ${doneCount(u, day)} of ${taskTotal(u, day)} tasks done on day ${day}`);
   else if (s === "missed") toast(`${u.name} missed day ${day}`);
   else toast(`Day ${day} hasn't been logged yet`);
 });
