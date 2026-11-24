@@ -134,36 +134,72 @@ function stats(u) {
 
 // ---------- Calendar ----------
 
+// The 75 days are laid out on real months, weeks starting on Monday. Dates in those
+// months that fall outside the challenge are shown faintly so the month reads normally.
 const grid = $("grid");
-const cells = [];
-for (let day = 1; day <= TOTAL; day++) {
-  const li = document.createElement("li");
-  li.style.setProperty("--i", day);
-  const btn = document.createElement("button");
-  btn.type = "button";
-  btn.className = "day";
-  btn.dataset.day = day;
-  btn.innerHTML =
-    `<span class="num">${day}</span><span class="tag">${day}</span><span class="cheer-count"></span>` +
-    svg("x", "M6 6 L18 18 M18 6 L6 18") +
-    svg("tick", "M5 12.5 L10 17 L19 7");
-  li.append(btn);
-  grid.append(li);
-  cells.push(btn);
+let cells = [];
+let builtFor = null;
+
+function buildCalendar(u) {
+  const start = u?.start || isoToday();
+  if (builtFor === start) return;
+  builtFor = start;
+  cells = [];
+  const first = parseDate(start);
+  const last = new Date(first);
+  last.setDate(last.getDate() + TOTAL - 1);
+  const monday = new Date(2024, 0, 1);
+  const weekdays = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(monday);
+    d.setDate(d.getDate() + i);
+    return `<li>${fmt(d, { weekday: "short" }).slice(0, 3)}</li>`;
+  }).join("");
+  const sameYear = first.getFullYear() === last.getFullYear() && first.getFullYear() === new Date().getFullYear();
+  const frag = document.createDocumentFragment();
+  for (let m = new Date(first.getFullYear(), first.getMonth(), 1); m <= last; m.setMonth(m.getMonth() + 1)) {
+    const section = document.createElement("section");
+    section.className = "month";
+    section.innerHTML =
+      `<h3>${fmt(m, sameYear ? { month: "long" } : { month: "long", year: "numeric" })}</h3>` +
+      `<ol class="weekdays" aria-hidden="true">${weekdays}</ol>`;
+    const ol = document.createElement("ol");
+    ol.className = "grid";
+    // Only the weeks that hold challenge days, from Monday to Sunday, clipped to the month.
+    const daysInMonth = new Date(m.getFullYear(), m.getMonth() + 1, 0).getDate();
+    const from = m < first ? first.getDate() : 1;
+    const to = new Date(m.getFullYear(), m.getMonth(), daysInMonth) > last ? last.getDate() : daysInMonth;
+    const lead = (new Date(m.getFullYear(), m.getMonth(), from).getDay() + 6) % 7;
+    const startDate = Math.max(1, from - lead);
+    const trail = 6 - (new Date(m.getFullYear(), m.getMonth(), to).getDay() + 6) % 7;
+    const endDate = Math.min(daysInMonth, to + trail);
+    for (let i = 0; i < (new Date(m.getFullYear(), m.getMonth(), startDate).getDay() + 6) % 7; i++) ol.append(document.createElement("li"));
+    for (let date = startDate; date <= endDate; date++) {
+      const li = document.createElement("li");
+      const day = Math.round((new Date(m.getFullYear(), m.getMonth(), date) - first) / DAY_MS) + 1;
+      if (day < 1 || day > TOTAL) {
+        li.className = "outside";
+        li.innerHTML = `<span>${date}</span>`;
+      } else {
+        li.style.setProperty("--i", day);
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "day";
+        btn.dataset.day = day;
+        btn.innerHTML =
+          `<span class="num">${date}</span><span class="streak">${day}</span><span class="cheer-count"></span>` +
+          `<span class="mark">${svg("x", "M6 6 L18 18 M18 6 L6 18")}${svg("tick", "M5 12.5 L10 17 L19 7")}</span>`;
+        li.append(btn);
+        cells[day - 1] = btn;
+      }
+      ol.append(li);
+    }
+    section.append(ol);
+    frag.append(section);
+  }
+  grid.replaceChildren(frag);
 }
 
 const cheersForDay = (day) => cheers.filter((c) => c.day === day);
-
-function renderWeekdays(u) {
-  const first = u?.start ? parseDate(u.start) : new Date(2024, 0, 1); // a Monday
-  const labels = [];
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(first);
-    d.setDate(d.getDate() + i);
-    labels.push(`<li>${fmt(d, { weekday: "short" }).slice(0, 3)}</li>`);
-  }
-  $("weekdays").innerHTML = labels.join("");
-}
 
 function renderDay(day) {
   const u = viewed();
@@ -176,8 +212,7 @@ function renderDay(day) {
   btn.querySelector(".cheer-count").textContent = got ? `🎉${got > 1 ? got : ""}` : "";
 
   const date = dateFor(u, day);
-  let label = `Day ${day}`;
-  if (date) label += `, ${fmt(date, { weekday: "long", month: "long", day: "numeric" })}`;
+  let label = date ? `${fmt(date, { weekday: "long", month: "long", day: "numeric" })}, day ${day} of ${TOTAL}` : `Day ${day}`;
   if (s === "complete") label += ", complete";
   else if (s === "partial") label += `, ${doneCount(u, day)} of ${taskTotal(u, day)} tasks done`;
   else if (s === "missed") label += ", missed";
@@ -294,7 +329,7 @@ function renderProfile() {
 function renderAll() {
   if (!viewed()) return;
   document.body.classList.remove("loading");
-  renderWeekdays(viewed());
+  buildCalendar(viewed());
   for (let d = 1; d <= TOTAL; d++) renderDay(d);
   renderHero();
   renderToday();
