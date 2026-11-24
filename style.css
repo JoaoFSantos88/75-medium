@@ -1065,3 +1065,51 @@ body.friend-view .day.today:not(.partial):not(.complete):not(.missed) { cursor: 
 }
 .toast.out { opacity: 0; transform: translateY(8px); }
 @keyframes toast-in { from { opacity: 0; transform: translateY(12px) scale(0.96); } }
+
+/* ---------- PIN ---------- */
+
+.pin-input { letter-spacing: 0.4em; font-variant-numeric: tabular-nums; }
+.pin-input::placeholder { letter-spacing: normal; }
+.pin-input.big {
+  display: block;
+  width: 100%;
+  margin: 18px 0 0;
+  padding: 16px;
+  border: 1px solid var(--line-strong);
+  border-radius: 16px;
+  background: var(--raised);
+  color: var(--text);
+  font: inherit;
+  font-size: 28px;
+  font-weight: 600;
+  text-align: center;
+  letter-spacing: 0.6em;
+  text-indent: 0.6em;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.pin-input.big::placeholder { letter-spacing: 0.6em; color: var(--faint); }
+.pin-input.big:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--accent) 18%, transparent);
+}
+.pin-error { min-height: 1.4em; margin: 10px 0 0; color: var(--missed); font-size: 14px; text-align: center; }
+.pin-avatar {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  margin-bottom: 18px;
+  border-radius: 50%;
+  background: linear-gradient(150deg, var(--accent), var(--complete));
+  color: var(--on-color);
+  font-size: 22px;
+  font-weight: 600;
+}
+.field-hint { display: block; margin-top: 6px; color: var(--muted); font-size: 12.5px; }
+#pin-form.shake { animation: shake 0.4s; }
+@keyframes shake {
+  20%, 60% { transform: translateX(-8px); }
+  40%, 80% { transform: translateX(8px); }
+}
+#pin-form h2:focus { outline: none; }

@@ -132,8 +132,22 @@
         <span>Start date</span>
         <input type="date" id="new-start" required>
       </label>
+      <label class="field">
+        <span>Choose a 4-digit PIN</span>
+        <input type="password" class="pin-input" id="new-pin" required inputmode="numeric" pattern="[0-9]{4}" maxlength="4" autocomplete="new-password" placeholder="••••">
+        <small class="field-hint">You'll enter it when you open your calendar on a new device.</small>
+      </label>
       <button type="submit" class="primary">Let's go</button>
       <button type="button" class="ghost block" id="new-back">Back</button>
+    </form>
+    <form id="pin-form" method="dialog" hidden>
+      <div class="pin-avatar" id="pin-avatar" aria-hidden="true"></div>
+      <h2 id="pin-title" tabindex="-1">Hi, <em id="pin-name"></em></h2>
+      <p class="sheet-lede" id="pin-lede">Enter your 4-digit PIN to open your calendar.</p>
+      <input type="password" class="pin-input big" id="pin" required inputmode="numeric" pattern="[0-9]{4}" maxlength="4" autocomplete="current-password" aria-labelledby="pin-lede" placeholder="••••">
+      <p class="pin-error" id="pin-error" role="alert"></p>
+      <button type="submit" class="primary" id="pin-submit">Unlock</button>
+      <button type="button" class="ghost block" id="pin-back">Not you? Go back</button>
     </form>
   </dialog>
 
@@ -183,6 +197,10 @@
       <label class="field">
         <span>Start date</span>
         <input type="date" id="det-start" required>
+      </label>
+      <label class="field">
+        <span>New PIN</span>
+        <input type="password" class="pin-input" id="det-pin" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" autocomplete="new-password" placeholder="Leave empty to keep it">
       </label>
       <button type="submit" class="primary">Save</button>
       <button type="button" class="ghost block" id="switch-person">This isn't me: switch person</button>
