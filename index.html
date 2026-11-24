@@ -7,7 +7,7 @@
   <meta name="description" content="Track your 75 Medium streak with friends, one day at a time.">
   <meta name="theme-color" content="#f6f5f8" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#0b0b0f" media="(prefers-color-scheme: dark)">
-  <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+  <link rel="icon" href="assets/icon.svg?v=dev" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=Instrument+Serif:ital@0;1&display=swap">
@@ -18,7 +18,7 @@
 
   <header class="topbar">
     <a class="brand" href="./" aria-label="75 Medium home">
-      <img src="assets/icon.svg" alt="" width="28" height="28">
+      <img src="assets/icon.svg?v=dev" alt="" width="28" height="28">
       <span>75 Medium</span>
     </a>
     <button type="button" class="about-btn" id="about-open" aria-haspopup="dialog">
@@ -112,8 +112,8 @@
   <!-- Who's tracking: pick yourself or join -->
   <dialog class="sheet" id="who" aria-labelledby="who-title">
     <div id="who-pick">
-      <div class="setup-mark"><img src="assets/icon.svg" alt="" width="48" height="48"></div>
-      <h2 id="who-title">Who's <em>tracking?</em></h2>
+      <div class="setup-mark"><img src="assets/icon.svg?v=dev" alt="" width="48" height="48"></div>
+      <h2 id="who-title" tabindex="-1" autofocus>Who's <em>tracking?</em></h2>
       <p class="sheet-lede" id="who-lede">Pick yourself to load your calendar on this device.</p>
       <button type="button" class="who-about" data-about>New to this? What's 75 Medium?</button>
       <ul class="people pick" id="who-list"></ul>
@@ -121,7 +121,7 @@
       <button type="button" class="ghost block" id="who-cancel" hidden>Cancel</button>
     </div>
     <form id="new-form" method="dialog" hidden>
-      <div class="setup-mark"><img src="assets/icon.svg" alt="" width="48" height="48"></div>
+      <div class="setup-mark"><img src="assets/icon.svg?v=dev" alt="" width="48" height="48"></div>
       <h2>Start your <em>75 Medium</em></h2>
       <p class="sheet-lede">Eight tasks a day for seventy-five days. Tell us who you are and when day one is.</p>
       <label class="field">
