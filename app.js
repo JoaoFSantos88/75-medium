@@ -652,6 +652,13 @@ function openMyDay(day) {
   sheet.showModal();
 }
 
+$("today-open").addEventListener("click", () => {
+  const u = meUser();
+  const t = todayFor(u);
+  if (!u || t < 1 || t > TOTAL) return;
+  openMyDay(t);
+});
+
 tasksEl.addEventListener("click", (e) => {
   const btn = e.target.closest(".task");
   if (!btn) return;
